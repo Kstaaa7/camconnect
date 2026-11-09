@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CamConnect - VIP & Chat Vidéo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-950 text-white h-screen flex flex-col justify-between overflow-hidden">
+
+    <!-- En-tête -->
+    <header class="px-4 py-2 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur shrink-0">
+        <div class="flex items-center gap-4">
+            <h1 class="text-lg font-bold bg-gradient-to-r from-indigo-500 to-rose-500 bg-clip-text text-transparent">CamConnect</h1>
+            <span id="vipBadge" class="hidden bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full text-xs font-bold items-center gap-1">
+                ⭐ VIP ACTIVÉ
+            </span>
+            <span id="status" class="text-xs text-amber-400 font-medium">Prêt à démarrer</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <!-- Badge Modération Active -->
+            <span id="aiStatus" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1">
+                🛡️ Modération : Active (Sécurité & Anti-Abus)
+            </span>
+
+            <!-- Bouton Profil -->
+            <button onclick="openProfileModal()" class="bg-slate-800 hover:bg-slate-700 text-xs font-medium px-3 py-1.5 rounded-full border border-slate-700 transition flex items-center gap-1.5 text-slate-200">
+                <span>👤 <span id="displayUsername">Mon Profil</span></span>
+            </button>
+
+            <!-- Sélecteur de langue & VIP -->
+            <div class="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-full border border-slate-800 text-xs font-medium text-slate-300">
+                <span>🌍</span>
+                <select id="langSelect" onchange="checkVipFilter(this)" class="bg-slate-950 text-white border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-indigo-500 text-xs">
+                    <option value="all">Monde entier (Gratuit)</option>
+                    <option value="fr">Français (Gratuit)</option>
+                    <option value="vip_women">🔒 Filles uniquement (VIP)</option>
+                    <option value="vip_usa">🔒 États-Unis uniquement (VIP)</option>
+                </select>
+            </div>
+
+            <!-- Bouton VIP -->
+            <button onclick="openVipModal()" id="vipBtn" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-extrabold px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 transition flex items-center gap-1 animate-pulse">
+                <span>✨ VIP</span>
+            </button>
+
+            <button onclick="copyInviteLink()" class="bg-slate-800 hover:bg-slate-700 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-700 transition flex items-center gap-1">
+                <span id="copyText">Partager</span>
+            </button>
+            <div class="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-full border border-slate-800 text-xs font-medium text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="onlineCount">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Zone principale -->
+    <main class="flex-1 p-3 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-3 items-center overflow-hidden">
+        
+        <!-- Colonne des flux vidéos -->
+        <div class="lg:col-span-2 grid grid-rows-2 gap-3 h-full max-h-[calc(100vh-140px)]">
+            <!-- Vidéo Partenaire -->
+            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg h-full">
+                <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover transition-all duration-300"></video>
+                
+                <div id="remotePlaceholder" class="absolute text-slate-500 flex flex-col items-center text-xs">
+                    <svg class="w-10 h-10 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <span>En attente d'un partenaire...</span>
+                </div>
+                <span id="remoteNameLabel" class="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded-md text-[11px] backdrop-blur font-semibold text-rose-400 z-10">Inconnu</span>
+            </div>
+
+            <!-- Votre Vidéo -->
+            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg h-full">
+                <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover -scale-x-100"></video>
+                <span id="localNameLabel" class="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded-md text-[11px] backdrop-blur font-semibold text-indigo-400">Vous</span>
+            </div>
+        </div>
+
+        <!-- Colonne de droite : Chat et Amis -->
+        <div class="flex flex-col gap-3 h-full max-h-[calc(100vh-140px)]">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col flex-1 shadow-lg overflow-hidden min-h-[180px]">
+                <div class="px-3 py-2 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-900/80 flex justify-between items-center">
+                    <span>Discussion</span>
+                    <span id="typingIndicator" class="text-indigo-400 text-[10px] italic opacity-0 transition-opacity">Écrit...</span>
+                </div>
+                <div id="chatMessages" class="flex-1 p-2.5 overflow-y-auto flex flex-col gap-1.5 text-xs">
+                    <div class="text-slate-500 text-center italic my-auto">Connectez-vous pour chatter.</div>
+                </div>
+                <form id="chatForm" onsubmit="sendChatMessage(event)" class="p-2 border-t border-slate-800 flex gap-1.5 bg-slate-900/50">
+                    <input type="text" id="chatInput" placeholder="Message..." autocomplete="off" disabled oninput="handleTypingInput()"
+                        class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+                    <button type="submit" id="sendBtn" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                        ➤
+                    </button>
+                </form>
+            </div>
+
+            <!-- Amis Récents -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-[130px] shadow-lg overflow-hidden p-2.5 shrink-0">
+                <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-800 flex justify-between items-center">
+                    <span>⭐ Amis Récents</span>
+                    <span id="friendCount" class="bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full text-[9px]">0</span>
+                </div>
+                <div id="friendsList" class="flex-1 overflow-y-auto py-1.5 flex flex-col gap-1 text-xs">
+                    <div class="text-slate-500 text-center italic my-auto text-[10px]">Aucun ami récent.</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Barre de Contrôle -->
+    <footer class="px-4 py-2.5 bg-slate-900/90 border-t border-slate-800 flex justify-center gap-2.5 flex-wrap items-center shrink-0">
+        <button onclick="startSearch()" id="searchBtn" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-xl font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 text-xs">
+            <span>Démarrer / Suivant</span>
+            <kbd class="bg-indigo-700/60 px-1.5 py-0.5 rounded text-[10px] text-indigo-200 border border-indigo-500/30">Espace</kbd>
+        </button>
+        
+        <button onclick="addCurrentFriend()" id="addFriendBtn" disabled class="hidden bg-rose-600/80 hover:bg-rose-500 px-4 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 flex items-center gap-1.5 text-xs disabled:opacity-50">
+            ❤️ Ajouter en ami
+        </button>
+
+        <!-- Bouton Filtres Vidéo -->
+        <button onclick="toggleVideoFilter()" id="filterBtn" class="bg-purple-600 hover:bg-purple-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-purple-600/30 flex items-center gap-1 text-xs">
+            🎨 Filtre : Normal
+        </button>
+
+        <!-- Bouton Partage d'écran -->
+        <button onclick="toggleScreenShare()" id="screenShareBtn" class="bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-sky-600/30 flex items-center gap-1 text-xs">
+            💻 Partager l'écran
+        </button>
+
+        <button onclick="reportPartner()" class="bg-amber-600 hover:bg-amber-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-amber-600/30 flex items-center gap-1 text-xs">
+            Signaler
+        </button>
+        <button onclick="stopChat()" class="bg-rose-600 hover:bg-rose-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 text-xs">
+            Arrêter
+        </button>
+    </footer>
+
+    <!-- Modale Profil -->
+    <div id="profileModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative text-center">
+            <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <div class="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3 text-xl border border-indigo-500/40">👤</div>
+            <h2 class="text-lg font-bold text-white mb-1">Mon Profil</h2>
+            <p class="text-slate-400 text-xs mb-4">Personnalisez votre pseudo sur le chat.</p>
+            <div class="text-left text-xs space-y-3 mb-6">
+                <div>
+                    <label class="block text-slate-400 mb-1">Votre Pseudo :</label>
+                    <input type="text" id="usernameInput" maxlength="15" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+            <button onclick="saveProfile()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-lg shadow-indigo-600/30">
+                Enregistrer
+            </button>
+        </div>
+    </div>
+
+    <!-- Modale VIP -->
+    <div id="vipModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-900 border border-amber-500/30 p-6 rounded-2xl max-w-md w-full shadow-2xl relative text-center">
+            <button onclick="closeVipModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl border border-amber-500/40">⭐</div>
+            <h2 class="text-xl font-bold text-white mb-1">Passez à CamConnect VIP</h2>
+            <p class="text-slate-400 text-xs mb-4">Accédez à des fonctionnalités de rencontre exclusives et sans limites.</p>
+            <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800 text-left text-xs space-y-2 mb-6">
+                <div class="flex items-center gap-2 text-slate-200">✨ <b>Filtre par Genre :</b> Parlez uniquement à des femmes.</div>
+                <div class="flex items-center gap-2 text-slate-200">🌍 <b>Filtre de Pays :</b> Ciblez des pays précis (USA, France...).</div>
+                <div class="flex items-center gap-2 text-slate-200">⚡ <b>Priorité absolue :</b> 0 temps d'attente lors de la recherche.</div>
+                <div class="flex items-center gap-2 text-slate-200">👑 <b>Badge VIP :</b> Démarquez-vous dans les discussions.</div>
+            </div>
+            <div class="text-2xl font-black text-amber-400 mb-4">4,99 € <span class="text-xs font-normal text-slate-400">/ mois</span></div>
+            <button onclick="startStripeCheckout()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-amber-500/20">
+                S'abonner avec Stripe
+            </button>
+        </div>
+    </div>
+
+    <!-- Script principal -->
+    <script>
+        const socket = io();
+        let localStream;
+        let peerConnection;
+        let currentPartnerId = null;
+        let typingTimeout = null;
+        let isVip = false;
+        let recentFriends = [];
+
+        // Gestion du pseudo
+        let myUsername = localStorage.getItem('camconnect_username') || 'Visiteur_' + Math.floor(Math.random() * 1000);
+        document.getElementById('usernameInput').value = myUsername;
+        document.getElementById('displayUsername').innerText = myUsername;
+        document.getElementById('localNameLabel').innerText = myUsername + " (Vous)";
+
+        function openProfileModal() { document.getElementById('profileModal').classList.remove('hidden'); }
+        function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+
+        function saveProfile() {
+            const inputVal = document.getElementById('usernameInput').value.trim();
+            if (inputVal) {
+                myUsername = inputVal;
+                localStorage.setItem('camconnect_username', myUsername);
+                document.getElementById('displayUsername').innerText = myUsername;
+                document.getElementById('localNameLabel').innerText = myUsername + " (Vous)";
+                closeProfileModal();
+            }
+        }
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        socket.on('online-count', (count) => {
+            document.getElementById('onlineCount').innerText = count;
+        });
+
+        socket.on('banned', (data) => {
+            alert("🚫 BANNISSEMENT : " + data.reason);
+            closePeerConnection();
+            document.getElementById('status').innerText = "Accès restreint (Banni)";
+            document.getElementById('status').className = "text-xs text-rose-500 font-bold";
+        });
+
+        async function initMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+            } catch (err) {
+                alert("Impossible d'accéder à la caméra ou au micro.");
+            }
+        }
+        initMedia();
+
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('vip') === 'true') {
+                isVip = true;
+                document.getElementById('vipBadge').classList.remove('hidden');
+                document.getElementById('vipBadge').classList.add('flex');
+                document.getElementById('vipBtn').style.display = 'none';
+                alert("Paiement réussi ! Bienvenue dans l'espace VIP.");
+                
+                const select = document.getElementById('langSelect');
+                select.options[2].text = "👩 Filles uniquement";
+                select.options[3].text = "🇺🇸 États-Unis uniquement";
+            }
+        });
+
+        function checkVipFilter(selectElement) {
+            if (selectElement.value.startsWith('vip_') && !isVip) {
+                openVipModal();
+                selectElement.value = 'all';
+            }
+        }
+
+        function openVipModal() { document.getElementById('vipModal').classList.remove('hidden'); }
+        function closeVipModal() { document.getElementById('vipModal').classList.add('hidden'); }
+
+        async function startStripeCheckout() {
+            try {
+                const response = await fetch('/create-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const data = await response.json();
+                if (data.url) window.location.href = data.url;
+                else alert("Erreur lors de la création de la session de paiement.");
+            } catch (err) {
+                console.error(err);
+                alert("Erreur de connexion au serveur de paiement.");
+            }
+        }
+
+        function startSearch() {
+            const selectedLang = document.getElementById('langSelect').value;
+            document.getElementById('status').innerText = "Recherche d'un inconnu...";
+            document.getElementById('status').className = "text-xs text-indigo-400 font-medium animate-pulse";
+            
+            if (peerConnection) {
+                socket.emit('next-partner');
+                closePeerConnection();
+            }
+            socket.emit('find-match', { lang: selectedLang, isVip: isVip, username: myUsername });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && document.activeElement !== document.getElementById('chatInput') && document.activeElement !== document.getElementById('usernameInput')) {
+                e.preventDefault();
+                startSearch();
+            }
+        });
+
+        function copyInviteLink() {
+            navigator.clipboard.writeText(window.location.href);
+            const copyText = document.getElementById('copyText');
+            copyText.innerText = "Copié !";
+            setTimeout(() => { copyText.innerText = "Partager"; }, 2000);
+        }
+
+        function reportPartner() {
+            if (!currentPartnerId) {
+                alert("Aucun partenaire à signaler pour le moment.");
+                return;
+            }
+            if (confirm("Signaler et bloquer cet utilisateur ? Au bout de 3 signalements, il sera banni automatiquement.")) {
+                socket.emit('report-partner');
+                closePeerConnection();
+                document.getElementById('status').innerText = "Utilisateur signalé et bloqué.";
+                document.getElementById('status').className = "text-xs text-rose-400 font-medium";
+                setTimeout(startSearch, 1000);
+            }
+        }
+
+        function addCurrentFriend() {
+            if (!currentPartnerId) return;
+            socket.emit('add-friend');
+            const btn = document.getElementById('addFriendBtn');
+            btn.innerText = "Demande envoyée ⏳";
+            btn.disabled = true;
+        }
+
+        socket.on('friend-request', ({ from, name }) => {
+            const requesterName = name || 'Votre partenaire';
+            const chatMessages = document.getElementById('chatMessages');
+            
+            const div = document.createElement('div');
+            div.className = "bg-rose-500/20 border border-rose-500/40 p-2.5 rounded-xl text-center my-2 shadow-lg";
+            div.innerHTML = `
+                <p class="text-xs text-rose-300 font-bold mb-2">❤️ ${escapeHtml(requesterName)} veut vous ajouter en ami !</p>
+                <button onclick="acceptFriendRequest('${from}', this)" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition shadow">
+                    Accepter l'invitation
+                </button>
+            `;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        function acceptFriendRequest(targetId, buttonElement) {
+            socket.emit('accept-friend', { targetId: targetId });
+            buttonElement.parentElement.remove();
+        }
+
+        socket.on('friend-added', ({ partnerId, partnerName }) => {
+            const name = partnerName || 'Ami';
+            if (!recentFriends.some(f => f.id === partnerId)) {
+                recentFriends.push({ id: partnerId, name: name });
+                updateFriendsUI();
+            }
+            alert(`✨ C'est un match amical ! ${name} a été ajouté à vos amis récents.`);
+        });
+
+        function updateFriendsUI() {
+            const container = document.getElementById('friendsList');
+            document.getElementById('friendCount').innerText = recentFriends.length;
+            
+            if (recentFriends.length === 0) {
+                container.innerHTML = '<div class="text-slate-500 text-center italic my-auto text-[10px]">Aucun ami récent.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            recentFriends.forEach((friend) => {
+                const div = document.createElement('div');
+                div.className = "bg-slate-950/60 p-1.5 rounded-lg border border-slate-800 flex justify-between items-center text-[11px]";
+                div.innerHTML = `<span class="font-bold text-slate-200">${escapeHtml(friend.name)}</span><span class="text-emerald-400 text-[10px]">Ami</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        socket.on('waiting', () => {
+            document.getElementById('status').innerText = "En attente d'un autre utilisateur...";
+        });
+
+        socket.on('match-found', async ({ partnerId, initiate, partnerName }) => {
+            currentPartnerId = partnerId;
+            const displayName = partnerName || 'Inconnu';
+            
+            document.getElementById('status').innerText = `Connecté avec ${displayName} !`;
+            document.getElementById('status').className = "text-xs text-emerald-400 font-medium";
+            document.getElementById('remotePlaceholder').style.display = 'none';
+            document.getElementById('remoteNameLabel').innerText = displayName;
+
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            
+            const addBtn = document.getElementById('addFriendBtn');
+            addBtn.classList.remove('hidden');
+            addBtn.disabled = false;
+            addBtn.innerText = "❤️ Ajouter en ami";
+
+            document.getElementById('chatMessages').innerHTML = `<div class="text-emerald-500 text-center text-xs">Connecté avec ${displayName} ! 👋</div>`;
+
+            createPeerConnection(partnerId);
+
+            if (initiate) {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('signal', { targetId: partnerId, signal: { type: 'offer', sdp: offer } });
+            }
+        });
+
+        function createPeerConnection(partnerId) {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            peerConnection.ontrack = (event) => {
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('signal', { targetId: partnerId, signal: { type: 'candidate', candidate: event.candidate } });
+                }
+            };
+        }
+
+        socket.on('signal', async ({ senderId, signal }) => {
+            if (!peerConnection) createPeerConnection(senderId);
+
+            if (signal.sdp) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                if (signal.type === 'offer') {
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    socket.emit('signal', { targetId: senderId, signal: { type: 'answer', sdp: answer } });
+                }
+            } else if (signal.candidate) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            }
+        });
+
+        function handleTypingInput() {
+            socket.emit('typing', true);
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => { socket.emit('typing', false); }, 1000);
+        }
+
+        socket.on('typing', (isTyping) => {
+            const indicator = document.getElementById('typingIndicator');
+            if (isTyping) indicator.classList.remove('opacity-0');
+            else indicator.classList.add('opacity-0');
+        });
+
+        function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            socket.emit('typing', false);
+            appendMessage(myUsername, message, 'text-indigo-400');
+            socket.emit('chat-message', message);
+            input.value = '';
+        }
+
+        socket.on('chat-message', (message) => {
+            const partnerLabel = document.getElementById('remoteNameLabel').innerText || 'Inconnu';
+            appendMessage(partnerLabel, message, 'text-rose-400');
+        });
+
+        function appendMessage(sender, message, colorClass) {
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages.querySelector('.italic')) {
+                chatMessages.innerHTML = '';
+            }
+            const div = document.createElement('div');
+            div.innerHTML = `<span class="font-bold ${colorClass}">${sender}:</span> ${escapeHtml(message)}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        socket.on('partner-disconnected', () => {
+            appendMessage('Système', 'Votre partenaire s\'est déconnecté.', 'text-slate-500 italic');
+            closePeerConnection();
+        });
+
+        function closePeerConnection() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            currentPartnerId = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('remotePlaceholder').style.display = 'flex';
+            document.getElementById('remoteNameLabel').innerText = 'Inconnu';
+            document.getElementById('chatInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('addFriendBtn').classList.add('hidden');
+            document.getElementById('typingIndicator').classList.add('opacity-0');
+        }
+
+        function stopChat() {
+            socket.emit('next-partner');
+            closePeerConnection();
+            document.getElementById('status').innerText = "Chat arrêté";
+            document.getElementById('status').className = "text-xs text-slate-400 font-medium";
+        }
+
+        // --- FILTRES VISUELS (Effets vidéo) ---
+        let currentFilterIndex = 0;
+        const videoFilters = [
+            { name: "Normal", class: "" },
+            { name: "Cyberpunk", class: "contrast-150 saturate-200 hue-rotate-15" },
+            { name: "Noir & Blanc", class: "grayscale" },
+            { name: "Sépia vintage", class: "sepia" },
+            { name: "Néon mystique", class: "invert hue-rotate-90" }
+        ];
+
+        function toggleVideoFilter() {
+            currentFilterIndex = (currentFilterIndex + 1) % videoFilters.length;
+            const selectedFilter = videoFilters[currentFilterIndex];
+            const localVid = document.getElementById('localVideo');
+            
+            videoFilters.forEach(f => {
+                if (f.class) {
+                    f.class.split(' ').forEach(c => localVid.classList.remove(c));
+                }
+            });
+
+            if (selectedFilter.class) {
+                selectedFilter.class.split(' ').forEach(c => localVid.classList.add(c));
+            }
+
+            document.getElementById('filterBtn').innerText = `🎨 Filtre : ${selectedFilter.name}`;
+        }
+
+        // --- PARTAGE D'ÉCRAN ---
+        let isSharingScreen = false;
+        let screenStream = null;
+
+        async function toggleScreenShare() {
+            try {
+                if (!isSharingScreen) {
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                    const screenTrack = screenStream.getVideoTracks()[0];
+                    
+                    if (peerConnection) {
+                        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+                        if (sender) {
+                            sender.replaceTrack(screenTrack);
+                        }
+                    }
+
+                    document.getElementById('localVideo').srcObject = screenStream;
+                    document.getElementById('screenShareBtn').innerText = "💻 Arrêter le partage";
+                    document.getElementById('screenShareBtn').className = "bg-rose-600 hover:bg-rose-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 flex items-center gap-1 text-xs";
+                    isSharingScreen = true;
+
+                    screenTrack.onended = () => {
+                        stopScreenShare();
+                    };
+                } else {
+                    stopScreenShare();
+                }
+            } catch (err) {
+                console.error("Erreur lors du partage d'écran :", err);
+            }
+        }
+
+        function stopScreenShare() {
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+            }
+
+            if (localStream && peerConnection) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                }
+                document.getElementById('localVideo').srcObject = localStream;
+            }
+
+            document.getElementById('screenShareBtn').innerText = "💻 Partager l'écran";
+            document.getElementById('screenShareBtn').className = "bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-sky-600/30 flex items-center gap-1 text-xs";
+            isSharingScreen = false;
+        }
+    </script>
+</body>
+</html>
