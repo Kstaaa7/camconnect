@@ -9,6 +9,28 @@
 </head>
 <body class="bg-slate-950 text-white h-screen flex flex-col justify-between overflow-hidden">
 
+    <!-- Modale de consentement obligatoire (Règles & Sécurité) -->
+    <div id="consent-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl text-center">
+            <div class="w-12 h-12 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto mb-3 text-xl border border-rose-500/40">🛡️</div>
+            <h2 class="text-lg font-bold text-white mb-2">Règles de la communauté</h2>
+            <p class="text-slate-400 text-xs mb-4 text-left leading-relaxed">
+                Bienvenue sur CamConnect. Pour garantir un espace sûr, respectueux et agréable pour tout le monde, veuillez respecter les règles suivantes :
+            </p>
+            <ul class="text-left text-xs space-y-2 text-slate-300 mb-6 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+                <li class="flex items-start gap-2"><span>❌</span> <b>Aucun contenu choquant</b>, sexuel, violent ou illégal (bannissement immédiat et définitif).</li>
+                <li class="flex items-start gap-2"><span>🤝</span> <b>Respect mutuel :</b> Pas de harcèlement, d'insultes ou de propos haineux.</li>
+                <li class="flex items-start gap-2"><span>🔞</span> <b>Âge requis :</b> Vous devez avoir au moins 18 ans pour utiliser ce service.</li>
+            </ul>
+            <p class="text-[11px] text-slate-400 mb-5">
+                En cliquant sur "J'accepte", vous certifiez avoir l'âge requis et vous engagez à respecter scrupuleusement ce règlement.
+            </p>
+            <button onclick="acceptConsent()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition text-xs shadow-lg shadow-indigo-600/30">
+                J'accepte et je continue
+            </button>
+        </div>
+    </div>
+
     <!-- En-tête -->
     <header class="px-4 py-2 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur shrink-0">
         <div class="flex items-center gap-4">
@@ -188,6 +210,32 @@
         let isVip = false;
         let recentFriends = [];
 
+        // Gestion de la modale de consentement
+        function acceptConsent() {
+            localStorage.setItem('camconnect_consent', 'true');
+            document.getElementById('consent-modal').classList.add('hidden');
+        }
+
+        window.addEventListener('load', () => {
+            // Vérifie si le consentement a déjà été donné lors d'une visite précédente
+            if (localStorage.getItem('camconnect_consent') === 'true') {
+                document.getElementById('consent-modal').classList.add('hidden');
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('vip') === 'true') {
+                isVip = true;
+                document.getElementById('vipBadge').classList.remove('hidden');
+                document.getElementById('vipBadge').classList.add('flex');
+                document.getElementById('vipBtn').style.display = 'none';
+                alert("Paiement réussi ! Bienvenue dans l'espace VIP.");
+                
+                const select = document.getElementById('langSelect');
+                select.options[2].text = "👩 Filles uniquement";
+                select.options[3].text = "🇺🇸 États-Unis uniquement";
+            }
+        });
+
         // Gestion du pseudo
         let myUsername = localStorage.getItem('camconnect_username') || 'Visiteur_' + Math.floor(Math.random() * 1000);
         document.getElementById('usernameInput').value = myUsername;
@@ -235,21 +283,6 @@
             }
         }
         initMedia();
-
-        window.addEventListener('load', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('vip') === 'true') {
-                isVip = true;
-                document.getElementById('vipBadge').classList.remove('hidden');
-                document.getElementById('vipBadge').classList.add('flex');
-                document.getElementById('vipBtn').style.display = 'none';
-                alert("Paiement réussi ! Bienvenue dans l'espace VIP.");
-                
-                const select = document.getElementById('langSelect');
-                select.options[2].text = "👩 Filles uniquement";
-                select.options[3].text = "🇺🇸 États-Unis uniquement";
-            }
-        });
 
         function checkVipFilter(selectElement) {
             if (selectElement.value.startsWith('vip_') && !isVip) {
