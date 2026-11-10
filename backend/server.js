@@ -14,7 +14,7 @@ app.use(express.json());
 
 // Comme Root Directory est sur backend/, on sert le static depuis le dossier parent ou en mettant frontend ailleurs. 
 // Mais le plus simple : si ton frontend est à la racine, on remonte d'un cran :
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(path.join(__dirname)));
 
 // Route pour accéder au Dashboard Admin sécurisé (/admin)
 // Vu que admin.html est maintenant DANS le dossier backend, on pointe directement dessus :
