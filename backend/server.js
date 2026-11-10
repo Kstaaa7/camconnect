@@ -12,21 +12,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Dossier public du frontend (situé à la racine dans ../frontend)
-app.use(express.static(path.join(__dirname, '../frontend')));
+// Dossier public (maintenant directement dans le dossier courant backend/)
+app.use(express.static(__dirname));
 
-// Route pour accéder au Dashboard Admin sécurisé (/admin.html)
+// Routes explicites pour toutes les pages HTML
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Routes explicites pour les pages légales (Correction définitive de l'erreur Cannot GET)
 app.get('/cgu.html', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/cgu.html'));
+    res.sendFile(path.join(__dirname, 'cgu.html'));
 });
 
 app.get('/privacy.html', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/privacy.html'));
+    res.sendFile(path.join(__dirname, 'privacy.html'));
 });
 
 const server = http.createServer(app);
