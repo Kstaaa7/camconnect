@@ -14,10 +14,9 @@ app.use(express.json());
 
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Route pour accéder au Dashboard Admin sécurisé (/admin)
+// Route pour accéder au Dashboard Admin sécurisé (/admin) avec le bon chemin relatif
 app.get('/admin', (req, res) => {
-    // Essaie d'abord un chemin direct, ou ajuste selon ton arborescence
-    res.sendFile(path.join(__dirname, 'frontend/admin.html'));
+    res.sendFile(path.join(__dirname, '../frontend/admin.html'));
 });
 
 const server = http.createServer(app);
