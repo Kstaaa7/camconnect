@@ -4,141 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamConnect - Admin Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-box, .dashboard { background: #1e293b; padding: 30px; border-radius: 10px; width: 100%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        input { width: 100%; padding: 10px; margin: 10px 0; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #3b82f6; border: none; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2563eb; }
+        .hidden { display: none !important; }
+        .stats { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .card { background: #334155; padding: 15px; border-radius: 8px; width: 45%; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #334155; }
+        .error { color: #ef4444; font-size: 13px; margin-top: 5px; }
+    </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col p-6">
+<body>
 
-    <!-- Écran de Connexion Admin -->
-    <div id="loginScreen" class="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
-        <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center space-y-4">
-            <div class="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto text-xl border border-indigo-500/40">🔒</div>
-            <h2 class="text-xl font-bold">Administration</h2>
-            <p class="text-xs text-slate-400">Entrez le mot de passe administrateur.</p>
-            <input type="password" id="adminPwd" placeholder="Mot de passe..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
-            <button onclick="loginAdmin()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-2.5 rounded-xl text-xs transition">
-                Se connecter
-            </button>
-            <p id="loginError" class="text-xs text-rose-500 hidden"></p>
-        </div>
+    <!-- SECTION CONNEXION -->
+    <div id="loginSection" class="login-box">
+        <h2>🔒 Administration</h2>
+        <p style="color: #94a3b8; font-size: 14px;">Entre le mot de passe administrateur.</p>
+        <input type="password" id="adminPasswordInput" placeholder="Mot de passe">
+        <button onclick="login()">Se connecter</button>
+        <div id="loginError" class="error"></div>
     </div>
 
-    <!-- Dashboard Principal -->
-    <div id="dashboard" class="max-w-6xl mx-auto w-full space-y-6 hidden">
-        <header class="flex justify-between items-center border-b border-slate-800 pb-4">
-            <div>
-                <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-500 to-rose-500 bg-clip-text text-transparent">CamConnect Admin</h1>
-                <p class="text-xs text-slate-400">Supervision en direct</p>
+    <!-- SECTION TABLEAU DE BORD -->
+    <div id="dashboardSection" class="dashboard hidden" style="max-width: 800px;">
+        <h2>📊 Tableau de bord CamConnect</h2>
+        <div class="stats">
+            <div class="card">
+                <h3>En ligne</h3>
+                <p id="statOnline" style="font-size: 24px; font-weight: bold;">0</p>
             </div>
-            <button onclick="location.reload()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700">Déconnexion</button>
-        </header>
-
-        <!-- Cartes Statistiques -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-                <div>
-                    <p class="text-xs text-slate-400 uppercase font-semibold">Utilisateurs en ligne</p>
-                    <h3 id="statOnline" class="text-3xl font-black text-indigo-400 mt-1">0</h3>
-                </div>
-                <div class="w-10 h-10 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center text-lg">👥</div>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-                <div>
-                    <p class="text-xs text-slate-400 uppercase font-semibold">Utilisateurs VIP actifs</p>
-                    <h3 id="statVip" class="text-3xl font-black text-amber-400 mt-1">0</h3>
-                </div>
-                <div class="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-lg">⭐</div>
+            <div class="card">
+                <h3>VIP Actifs</h3>
+                <p id="statVip" style="font-size: 24px; font-weight: bold;">0</p>
             </div>
         </div>
 
-        <!-- Tableau des utilisateurs connectés -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-            <div class="px-5 py-3 border-b border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Utilisateurs connectés en direct
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-slate-950/50 text-slate-400 border-b border-slate-800">
-                        <tr>
-                            <th class="p-3">Pseudo</th>
-                            <th class="p-3">Statut</th>
-                            <th class="p-3">Adresse IP</th>
-                            <th class="p-3">Connexion</th>
-                            <th class="p-3 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="usersTableBody" class="divide-y divide-slate-800">
-                        <tr>
-                            <td colspan="5" class="p-4 text-center text-slate-500 italic">Aucun utilisateur connecté.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <h3>Utilisateurs connectés</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pseudo</th>
+                    <th>IP</th>
+                    <th>VIP</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+                <!-- Rempli dynamiquement -->
+            </tbody>
+        </table>
     </div>
 
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
 
-        function loginAdmin() {
-            const pwd = document.getElementById('adminPwd').value;
+        function login() {
+            const pwd = document.getElementById('adminPasswordInput').value;
             socket.emit('admin-login', pwd);
         }
 
         socket.on('admin-auth-success', () => {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
         });
 
         socket.on('admin-auth-error', (msg) => {
-            const err = document.getElementById('loginError');
-            err.innerText = msg;
-            err.classList.remove('hidden');
-        });
-
-        socket.on('admin-stats-broadcast', (data) => {
-            updateDashboard(data);
+            document.getElementById('loginError').innerText = msg;
         });
 
         socket.on('admin-stats-update', (data) => {
-            updateDashboard(data);
+            updateStats(data);
         });
 
-        function updateDashboard(data) {
+        socket.on('admin-stats-broadcast', (data) => {
+            updateStats(data);
+        });
+
+        function updateStats(data) {
             document.getElementById('statOnline').innerText = data.onlineCount;
             document.getElementById('statVip').innerText = data.vipCount;
 
             const tbody = document.getElementById('usersTableBody');
-            if (data.users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">Aucun utilisateur connecté.</td></tr>';
-                return;
-            }
-
             tbody.innerHTML = '';
-            data.users.forEach(user => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-800/50 transition";
-                tr.innerHTML = `
-                    <td class="p-3 font-bold text-slate-200">${escapeHtml(user.username)}</td>
-                    <td class="p-3">${user.isVip ? '<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">VIP</span>' : '<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">Gratuit</span>'}</td>
-                    <td class="p-3 text-slate-400 font-mono">${user.ip}</td>
-                    <td class="p-3 text-slate-400">${user.connectedAt}</td>
-                    <td class="p-3 text-right">
-                        <button onclick="banUser('${user.id}')" class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2.5 py-1 rounded transition font-bold text-[10px]">Bannir</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
 
-        function banUser(socketId) {
-            if (confirm("Voulez-vous vraiment bannir cet utilisateur instantanément ?")) {
-                socket.emit('admin-ban-user', socketId);
+            if (data.users) {
+                data.users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${u.username}</td>
+                        <td>${u.ip}</td>
+                        <td>${u.isVip ? '⭐ Oui' : 'Non'}</td>
+                        <td><button style="padding: 4px 8px; background: #ef4444;" onclick="banUser('${u.id}')">Bannir</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
             }
         }
 
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        function banUser(userId) {
+            socket.emit('admin-ban-user', userId);
         }
     </script>
 </body>
