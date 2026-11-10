@@ -20,6 +20,15 @@ app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+// Routes explicites pour les pages légales (Correction définitive de l'erreur Cannot GET)
+app.get('/cgu.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/cgu.html'));
+});
+
+app.get('/privacy.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/privacy.html'));
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
@@ -232,7 +241,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // CORRECTION : Prise en compte du motif de signalement envoyé par le client
   socket.on('report-partner', (data) => {
     const reportReason = data && data.reason ? data.reason : "Non spécifié";
 
@@ -245,7 +253,7 @@ io.on('connection', (socket) => {
         
         let targetData = userReports.get(targetIp) || { count: 0, bannedUntil: null, lastReason: '' };
         targetData.count += 1;
-        targetData.lastReason = reportReason; // Sauvegarde de la raison exacte
+        targetData.lastReason = reportReason;
 
         if (targetData.count >= BAN_THRESHOLD) {
           targetData.bannedUntil = Date.now() + BAN_DURATION_MS;
