@@ -12,13 +12,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Comme Root Directory est sur backend/, on sert le static depuis le dossier parent ou en mettant frontend ailleurs. 
-// Mais le plus simple : si ton frontend est à la racine, on remonte d'un cran :
+// Dossier public du frontend (situé à la racine dans ../frontend)
 app.use(express.static(path.join(__dirname, '../frontend')));
-// Route pour accéder au Dashboard Admin sécurisé (/admin)
-// Vu que admin.html est maintenant DANS le dossier backend, on pointe directement dessus :
+
+// Route pour accéder au Dashboard Admin sécurisé (/admin.html)
+// admin.html étant dans le dossier backend/, on pointe directement dessus :
 app.get('/admin.html', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/admin.html'));
+    res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 const server = http.createServer(app);
@@ -50,8 +50,8 @@ app.post('/create-checkout-session', async (req, res) => {
 });
 
 const userReports = new Map();
-const vipUsers = new Map(); // Stocke l'expiration du VIP par IP
-const activeUsersList = new Map(); // Suivi des utilisateurs pour le panel admin
+const vipUsers = new Map(); 
+const activeUsersList = new Map(); 
 const BAN_THRESHOLD = 3;
 const BAN_DURATION_MS = 15 * 60 * 1000;
 
@@ -74,7 +74,6 @@ function getClientIp(socket) {
   return forwarded ? forwarded.split(',')[0].trim() : socket.handshake.address;
 }
 
-// Fonction pour envoyer les stats en temps réel aux admins connectés
 function broadcastAdminStats() {
   const vipCount = Array.from(activeUsersList.values()).filter(u => u.isVip).length;
   const stats = {
@@ -88,7 +87,6 @@ function broadcastAdminStats() {
 io.on('connection', (socket) => {
   const clientIp = getClientIp(socket);
 
-  // Vérification du bannissement
   const reportData = userReports.get(clientIp);
   if (reportData && reportData.bannedUntil && Date.now() < reportData.bannedUntil) {
     socket.emit('banned', { reason: "Vous êtes temporairement banni." });
@@ -96,13 +94,12 @@ io.on('connection', (socket) => {
     return;
   }
 
-  // Vérification si l'IP a un VIP temporaire actif (parrainage)
   if (vipUsers.has(clientIp)) {
     if (Date.now() < vipUsers.get(clientIp)) {
       socket.isVip = true;
       socket.emit('vip-status', { active: true });
     } else {
-      vipUsers.delete(clientIp); // Expiré
+      vipUsers.delete(clientIp);
     }
   }
 
@@ -110,7 +107,6 @@ io.on('connection', (socket) => {
   socket.blockedIds = new Set();
   socket.username = 'Visiteur';
 
-  // Enregistrement de l'utilisateur pour le dashboard admin
   activeUsersList.set(socket.id, {
     id: socket.id,
     username: socket.username,
@@ -121,7 +117,6 @@ io.on('connection', (socket) => {
 
   updateOnlineCount();
 
-  // --- ÉVÉNEMENTS ADMIN ---
   socket.on('admin-login', (password) => {
     const ADMIN_PWD = process.env.ADMIN_PASSWORD || 'camconnect2026';
     if (password === ADMIN_PWD) {
@@ -147,14 +142,11 @@ io.on('connection', (socket) => {
       broadcastAdminStats();
     }
   });
-  // -------------------------
 
-  // Gestion du parrainage (48h de VIP pour les deux)
   socket.on('claim-referral', (refCode) => {
     if (refCode) {
-      const expirationTime = Date.now() + (48 * 60 * 60 * 1000); // 48 heures
+      const expirationTime = Date.now() + (48 * 60 * 60 * 1000); 
 
-      // 1. Donne 48h de VIP au filleul
       socket.isVip = true;
       vipUsers.set(clientIp, expirationTime);
       
@@ -163,7 +155,6 @@ io.on('connection', (socket) => {
 
       socket.emit('vip-granted', { hours: 48, reason: "Grâce à ton lien de parrainage !" });
 
-      // 2. Cherche le parrain s'il est en ligne
       for (let [id, s] of io.sockets.sockets) {
         if (s.username === refCode) {
           const parrainIp = getClientIp(s);
@@ -187,7 +178,6 @@ io.on('connection', (socket) => {
     socket.username = data.username || 'Inconnu';
     socket.isVip = isVip;
 
-    // Met à jour le pseudo et le statut VIP dans la liste admin
     let userInfo = activeUsersList.get(socket.id);
     if (userInfo) {
       userInfo.username = socket.username;
