@@ -1,7 +1,7 @@
 {
-  "name": "camconnect",
+  "name": "camconnect-backend",
   "version": "1.0.0",
-  "description": "Omegle clone",
+  "description": "CamConnect Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
