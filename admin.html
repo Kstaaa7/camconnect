@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CamConnect - Chat Vidéo Aléatoire</title>
+    <meta name="description" content="Rejoignez CamConnect, la plateforme de chat vidéo en ligne pour faire des rencontres et discuter en direct." />
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; margin: 0; padding: 0; }
+        
+        /* POPUP DE CONNEXION OBLIGATOIRE (BLOQUE L'ACCÈS) */
+        #emailAuthModal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.98);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 99999;
+        }
+        .auth-card {
+            background: #1e293b; padding: 35px; border-radius: 12px;
+            width: 100%; max-width: 400px; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        .auth-card h2 { margin-top: 0; color: #fff; }
+        .auth-card input {
+            width: 100%; padding: 12px; margin: 15px 0;
+            background: #0f172a; border: 1px solid #334155;
+            color: #fff; border-radius: 6px; box-sizing: border-box;
+            font-size: 16px;
+        }
+        .auth-card button {
+            width: 100%; padding: 12px; background: #3b82f6;
+            border: none; color: white; border-radius: 6px;
+            cursor: pointer; font-weight: bold; font-size: 16px;
+        }
+        .auth-card button:hover { background: #2563eb; }
+        .error-msg { color: #ef4444; font-size: 13px; margin-top: 10px; }
+        
+        .hidden { display: none !important; }
+        
+        /* STYLE DU SITE PRINCIPAL */
+        #mainApp { padding: 40px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <!-- POPUP EMAIL OBLIGATOIRE (S'affiche à chaque fois) -->
+    <div id="emailAuthModal">
+        <div class="auth-card">
+            <h2>CamConnect</h2>
+            <p style="color: #94a3b8; font-size: 14px;">Entre ton adresse e-mail pour accéder au chat et vérifier ton accès VIP.</p>
+            <input type="email" id="userEmailInput" placeholder="ton.email@exemple.com" required>
+            <button onclick="submitUserEmail()">Entrer sur le site</button>
+            <div id="authError" class="error-msg"></div>
+        </div>
+    </div>
+
+    <!-- APPLICATION PRINCIPALE (Masquée par défaut) -->
+    <div id="mainApp" class="hidden">
+        <h1>Bienvenue sur CamConnect !</h1>
+        <p>Connecté avec l'e-mail : <span id="displayUserEmail" style="color: #38bdf8; font-weight: bold;"></span></p>
+        <p id="vipBadge" class="hidden" style="color: #fbbf24; font-weight: bold; font-size: 18px;">⭐ Membre VIP Actif</p>
+        
+        <!-- Interface de chat principale -->
+        <div style="margin-top: 30px;">
+            <p style="color: #94a3b8;">La plateforme est prête à l'emploi.</p>
+        </div>
+    </div>
+
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // Écoute des bannissements éventuels du serveur
+        socket.on('banned', (data) => {
+            alert(data.reason || "Accès restreint (Banni)");
+            document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:20vh;'>Accès restreint (Banni)</h1>";
+        });
+
+        // Fonction de validation de l'e-mail
+        async function submitUserEmail() {
+            const email = document.getElementById('userEmailInput').value.trim();
+            const errorDiv = document.getElementById('authError');
+
+            if (!email || !email.includes('@') || !email.includes('.')) {
+                errorDiv.innerText = "Veuillez entrer une adresse e-mail valide.";
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    localStorage.setItem('camconnect_email', data.email);
+
+                    // Masquer le popup et afficher l'application
+                    document.getElementById('emailAuthModal').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('displayUserEmail').innerText = data.email;
+
+                    if (data.isVip) {
+                        document.getElementById('vipBadge').classList.remove('hidden');
+                    }
+
+                    socket.emit('check-user-vip', data.email);
+                } else {
+                    errorDiv.innerText = data.error || "Erreur lors de la connexion.";
+                }
+            } catch (err) {
+                errorDiv.innerText = "Erreur de communication avec le serveur.";
+                console.error(err);
+            }
+        }
+
+        // Valider avec la touche "Entrée"
+        document.getElementById('userEmailInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                submitUserEmail();
+            }
+        });
+
+        // Pré-remplit l'input si l'utilisateur est déjà venu, MAIS laisse le popup affiché
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedEmail = localStorage.getItem('camconnect_email');
+            if (savedEmail) {
+                document.getElementById('userEmailInput').value = savedEmail;
+            }
+        });
+    </script>
+</body>
+</html>

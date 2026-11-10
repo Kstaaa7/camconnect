@@ -4,17 +4,71 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
+
+// ==========================================
+// 1. BASE DE DONNÉES SQLITE (Persistance)
+// ==========================================
+const db = new sqlite3.Database('./database.sqlite', (err) => {
+  if (err) console.error('Erreur ouverture DB SQLite', err.message);
+  else console.log('Connecté à la base de données SQLite.');
+});
+
+db.run(`CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE,
+  isVip INTEGER DEFAULT 0,
+  vipExpiresAt INTEGER DEFAULT 0
+)`);
+
+// ==========================================
+// 2. WEBHOOK STRIPE (DOIT ÊTRE AVANT express.json)
+// ==========================================
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(`Erreur signature Webhook: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Traitement du paiement réussi
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const customerEmail = session.customer_email || session.customer_details?.email || session.client_reference_id;
+
+    if (customerEmail) {
+      // VIP valide pour 30 jours (ou selon abonnement)
+      const expirationTime = Date.now() + (30 * 24 * 60 * 60 * 1000); 
+
+      db.run(`INSERT INTO users (email, isVip, vipExpiresAt) VALUES (?, 1, ?) 
+              ON CONFLICT(email) DO UPDATE SET isVip=1, vipExpiresAt=?`,
+        [customerEmail, expirationTime, expirationTime], (err) => {
+          if (err) console.error("Erreur mise à jour VIP DB:", err);
+          else console.log(`[STRIPE WEBHOOK] Succès : L'utilisateur ${customerEmail} est désormais VIP.`);
+        });
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// ==========================================
+// 3. MIDDLEWARES GLOBAUX & ROUTES STATIQUES
+// ==========================================
 app.use(cors());
 app.use(express.json());
 
 // Dossier public : tout est directement à la racine
 app.use(express.static(__dirname));
 
-// Routes explicites pour toutes les pages
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -31,17 +85,31 @@ app.get('/privacy.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'privacy.html'));
 });
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+// ==========================================
+// 4. API AUTH & PAIEMENT STRIPE
+// ==========================================
+app.post('/api/login', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email requis" });
+
+  db.run(`INSERT OR IGNORE INTO users (email, isVip, vipExpiresAt) VALUES (?, 0, 0)`, [email], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], (err, user) => {
+      if (err || !user) return res.status(500).json({ error: "Erreur lecture DB" });
+      const isVipActive = user.isVip === 1 && (user.vipExpiresAt === 0 || Date.now() < user.vipExpiresAt);
+      res.json({ success: true, email: user.email, isVip: isVipActive });
+    });
+  });
 });
 
 app.post('/create-checkout-session', async (req, res) => {
   try {
+    const { email } = req.body;
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionOptions = {
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID || 'price_1UZv382QyJFHgmvBhamAsCtx',
@@ -51,16 +119,29 @@ app.post('/create-checkout-session', async (req, res) => {
       mode: 'subscription',
       success_url: `${protocol}://${host}/?vip=true`,
       cancel_url: `${protocol}://${host}/?vip=canceled`,
-    });
+    };
 
+    if (email) {
+      sessionOptions.customer_email = email;
+      sessionOptions.client_reference_id = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionOptions);
     res.json({ url: session.url });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
+// ==========================================
+// 5. SOCKET.IO & LOGIQUE CHAT / ADMIN
+// ==========================================
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
 const userReports = new Map();
-const vipUsers = new Map(); 
 const activeUsersList = new Map(); 
 const BAN_THRESHOLD = 3;
 const BAN_DURATION_MS = 15 * 60 * 1000;
@@ -104,28 +185,38 @@ io.on('connection', (socket) => {
     return;
   }
 
-  if (vipUsers.has(clientIp)) {
-    if (Date.now() < vipUsers.get(clientIp)) {
-      socket.isVip = true;
-      socket.emit('vip-status', { active: true });
-    } else {
-      vipUsers.delete(clientIp);
-    }
-  }
-
   onlineCount++;
   socket.blockedIds = new Set();
   socket.username = 'Visiteur';
+  socket.isVip = false;
 
   activeUsersList.set(socket.id, {
     id: socket.id,
     username: socket.username,
     ip: clientIp,
-    isVip: socket.isVip || false,
+    isVip: socket.isVip,
     connectedAt: new Date().toLocaleTimeString()
   });
 
   updateOnlineCount();
+
+  // Vérification VIP via email si transmis par socket
+  socket.on('check-user-vip', (email) => {
+    if (!email) return;
+    db.get(`SELECT * FROM users WHERE email = ?`, [email], (err, user) => {
+      if (!err && user) {
+        const active = user.isVip === 1 && (user.vipExpiresAt === 0 || Date.now() < user.vipExpiresAt);
+        if (active) {
+          socket.isVip = true;
+          socket.userEmail = email;
+          let userInfo = activeUsersList.get(socket.id);
+          if (userInfo) userInfo.isVip = true;
+          socket.emit('vip-status', { active: true });
+          broadcastAdminStats();
+        }
+      }
+    });
+  });
 
   socket.on('admin-login', (password) => {
     const ADMIN_PWD = process.env.ADMIN_PASSWORD || 'camconnect2026';
@@ -158,8 +249,6 @@ io.on('connection', (socket) => {
       const expirationTime = Date.now() + (48 * 60 * 60 * 1000); 
 
       socket.isVip = true;
-      vipUsers.set(clientIp, expirationTime);
-      
       let userInfo = activeUsersList.get(socket.id);
       if (userInfo) userInfo.isVip = true;
 
@@ -167,10 +256,7 @@ io.on('connection', (socket) => {
 
       for (let [id, s] of io.sockets.sockets) {
         if (s.username === refCode) {
-          const parrainIp = getClientIp(s);
-          vipUsers.set(parrainIp, expirationTime);
           s.isVip = true;
-
           let parrainInfo = activeUsersList.get(s.id);
           if (parrainInfo) parrainInfo.isVip = true;
 
