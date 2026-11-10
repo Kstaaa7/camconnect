@@ -5,17 +5,16 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 
-// Utilisation d'une variable d'environnement pour plus de sécurité
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Dossier public (maintenant directement dans le dossier courant backend/)
+// Dossier public (tous les fichiers sont dans le dossier courant backend/)
 app.use(express.static(__dirname));
 
-// Routes explicites pour toutes les pages HTML
+// Routes explicites pour toutes les pages
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
