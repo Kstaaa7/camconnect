@@ -43,6 +43,7 @@ app.post('/create-checkout-session', async (req, res) => {
 });
 
 const userReports = new Map();
+const vipUsers = new Map(); // Stocke l'expiration du VIP par IP (ou par nom)
 const BAN_THRESHOLD = 3;
 const BAN_DURATION_MS = 15 * 60 * 1000;
 
@@ -67,6 +68,7 @@ function getClientIp(socket) {
 io.on('connection', (socket) => {
   const clientIp = getClientIp(socket);
 
+  // Vérification du bannissement
   const reportData = userReports.get(clientIp);
   if (reportData && reportData.bannedUntil && Date.now() < reportData.bannedUntil) {
     socket.emit('banned', { reason: "Vous êtes temporairement banni." });
@@ -74,13 +76,46 @@ io.on('connection', (socket) => {
     return;
   }
 
+  // Vérification si l'IP a un VIP temporaire actif (parrainage)
+  if (vipUsers.has(clientIp)) {
+    if (Date.now() < vipUsers.get(clientIp)) {
+      socket.isVip = true;
+      socket.emit('vip-status', { active: true });
+    } else {
+      vipUsers.delete(clientIp); // Expiré
+    }
+  }
+
   onlineCount++;
   updateOnlineCount();
   socket.blockedIds = new Set();
 
+  // Gestion du parrainage (48h de VIP pour les deux)
+  socket.on('claim-referral', (refCode) => {
+    if (refCode) {
+      const expirationTime = Date.now() + (48 * 60 * 60 * 1000); // 48 heures
+
+      // 1. Donne 48h de VIP au filleul (celui qui se connecte via le lien)
+      socket.isVip = true;
+      vipUsers.set(clientIp, expirationTime);
+      socket.emit('vip-granted', { hours: 48, reason: "Grâce à ton lien de parrainage !" });
+
+      // 2. Cherche le parrain s'il est en ligne pour lui donner aussi 48h
+      for (let [id, s] of io.sockets.sockets) {
+        if (s.username === refCode) {
+          const parrainIp = getClientIp(s);
+          vipUsers.set(parrainIp, expirationTime);
+          s.isVip = true;
+          s.emit('vip-granted', { hours: 48, reason: `Un ami (${socket.username || 'Nouveau'}) a rejoint via ton lien !` });
+          break;
+        }
+      }
+    }
+  });
+
   socket.on('find-match', (data) => {
     const lang = data.lang || 'all';
-    const isVip = data.isVip || false;
+    const isVip = data.isVip || socket.isVip || false;
     socket.username = data.username || 'Inconnu';
     socket.isVip = isVip;
 

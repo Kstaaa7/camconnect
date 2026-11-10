@@ -43,8 +43,14 @@
         <div class="flex items-center gap-2">
             <!-- Badge Modération Active -->
             <span id="aiStatus" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1">
-                🛡️ Modération : Active (Sécurité & Anti-Abus)
+                🛡️ Modération : Active
             </span>
+
+            <!-- Indicateur de qualité réseau WebRTC -->
+            <div class="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-full border border-slate-800 text-xs font-medium text-slate-300" title="Qualité de la connexion WebRTC">
+                <span id="networkIndicator" class="w-2.5 h-2.5 rounded-full bg-emerald-500 transition-colors duration-500"></span>
+                <span id="networkText" class="text-[10px] text-slate-400">Réseau : Excellent</span>
+            </div>
 
             <!-- Bouton Profil -->
             <button onclick="openProfileModal()" class="bg-slate-800 hover:bg-slate-700 text-xs font-medium px-3 py-1.5 rounded-full border border-slate-700 transition flex items-center gap-1.5 text-slate-200">
@@ -209,6 +215,7 @@
         let typingTimeout = null;
         let isVip = false;
         let recentFriends = [];
+        let statsInterval = null;
 
         // Gestion de la modale de consentement
         function acceptConsent() {
@@ -217,24 +224,41 @@
         }
 
         window.addEventListener('load', () => {
-            // Vérifie si le consentement a déjà été donné lors d'une visite précédente
             if (localStorage.getItem('camconnect_consent') === 'true') {
                 document.getElementById('consent-modal').classList.add('hidden');
             }
 
             const urlParams = new URLSearchParams(window.location.search);
+            
+            // Gestion du parrainage (envoie le ?ref= au serveur)
+            const refBy = urlParams.get('ref');
+            if (refBy) {
+                socket.emit('claim-referral', refBy);
+            }
+
             if (urlParams.get('vip') === 'true') {
-                isVip = true;
-                document.getElementById('vipBadge').classList.remove('hidden');
-                document.getElementById('vipBadge').classList.add('flex');
-                document.getElementById('vipBtn').style.display = 'none';
-                alert("Paiement réussi ! Bienvenue dans l'espace VIP.");
-                
-                const select = document.getElementById('langSelect');
+                activateVipUI("Paiement réussi ! Bienvenue dans l'espace VIP.");
+            }
+        });
+
+        // Écouteur pour l'activation du VIP gratuit par parrainage (48h)
+        socket.on('vip-granted', (data) => {
+            activateVipUI(`🎉 ${data.reason} (${data.hours}h de VIP offertes !`);
+        });
+
+        function activateVipUI(message) {
+            isVip = true;
+            document.getElementById('vipBadge').classList.remove('hidden');
+            document.getElementById('vipBadge').classList.add('flex');
+            document.getElementById('vipBtn').style.display = 'none';
+            alert(message);
+            
+            const select = document.getElementById('langSelect');
+            if (select.options.length > 3) {
                 select.options[2].text = "👩 Filles uniquement";
                 select.options[3].text = "🇺🇸 États-Unis uniquement";
             }
-        });
+        }
 
         // Gestion du pseudo
         let myUsername = localStorage.getItem('camconnect_username') || 'Visiteur_' + Math.floor(Math.random() * 1000);
@@ -329,9 +353,10 @@
         });
 
         function copyInviteLink() {
-            navigator.clipboard.writeText(window.location.href);
+            const refUrl = `${window.location.origin}/?ref=${encodeURIComponent(myUsername)}`;
+            navigator.clipboard.writeText(refUrl);
             const copyText = document.getElementById('copyText');
-            copyText.innerText = "Copié !";
+            copyText.innerText = "Lien VIP copié !";
             setTimeout(() => { copyText.innerText = "Partager"; }, 2000);
         }
 
@@ -441,6 +466,9 @@
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
+            // Active le suivi de la qualité de connexion WebRTC
+            startNetworkQualityMonitor(peerConnection);
+
             peerConnection.ontrack = (event) => {
                 document.getElementById('remoteVideo').srcObject = event.streams[0];
             };
@@ -450,6 +478,75 @@
                     socket.emit('signal', { targetId: partnerId, signal: { type: 'candidate', candidate: event.candidate } });
                 }
             };
+        }
+
+        // --- Surveillance de la qualité réseau WebRTC ---
+        function startNetworkQualityMonitor(pc) {
+            if (statsInterval) clearInterval(statsInterval);
+
+            statsInterval = setInterval(async () => {
+                if (!pc || pc.connectionState !== 'connected') {
+                    updateNetworkUI('disconnected');
+                    return;
+                }
+
+                try {
+                    const stats = await pc.getStats();
+                    let packetsLost = 0;
+                    let packetsReceived = 0;
+                    let currentRoundTripTime = 0;
+
+                    stats.forEach(report => {
+                        if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                            packetsLost = report.packetsLost || 0;
+                            packetsReceived = report.packetsReceived || 0;
+                        }
+                        if (report.type === 'remote-candidate' || report.type === 'candidate-pair') {
+                            if (report.currentRoundTripTime) {
+                                currentRoundTripTime = report.currentRoundTripTime;
+                            }
+                        }
+                    });
+
+                    const totalPackets = packetsLost + packetsReceived;
+                    const lossRate = totalPackets > 0 ? (packetsLost / totalPackets) : 0;
+
+                    if (lossRate > 0.10 || currentRoundTripTime > 0.6) {
+                        updateNetworkUI('poor'); // Rouge
+                    } else if (lossRate > 0.02 || currentRoundTripTime > 0.25) {
+                        updateNetworkUI('fair'); // Orange
+                    } else {
+                        updateNetworkUI('good'); // Vert
+                    }
+                } catch (err) {
+                    console.error("Erreur stats WebRTC:", err);
+                }
+            }, 2000);
+        }
+
+        function updateNetworkUI(status) {
+            const indicator = document.getElementById('networkIndicator');
+            const text = document.getElementById('networkText');
+            if (!indicator || !text) return;
+
+            if (status === 'good') {
+                indicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 transition-colors duration-500 shadow-lg shadow-emerald-500/50";
+                text.innerText = "Réseau : Excellent";
+            } else if (status === 'fair') {
+                indicator.className = "w-2.5 h-2.5 rounded-full bg-amber-500 transition-colors duration-500 shadow-lg shadow-amber-500/50";
+                text.innerText = "Réseau : Moyen";
+            } else {
+                indicator.className = "w-2.5 h-2.5 rounded-full bg-rose-500 transition-colors duration-500 animate-ping";
+                text.innerText = "Réseau : Instable";
+            }
+        }
+
+        function stopNetworkQualityMonitor() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+            updateNetworkUI('good');
         }
 
         socket.on('signal', async ({ senderId, signal }) => {
@@ -517,6 +614,7 @@
         });
 
         function closePeerConnection() {
+            stopNetworkQualityMonitor();
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
