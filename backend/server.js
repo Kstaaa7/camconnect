@@ -11,7 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Dossier public (tous les fichiers sont dans le dossier courant backend/)
+// Dossier public : tout est directement à la racine
 app.use(express.static(__dirname));
 
 // Routes explicites pour toutes les pages
