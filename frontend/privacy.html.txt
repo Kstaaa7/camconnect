@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Politique de Confidentialité - CamConnect</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; }
+        h1 { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>Politique de Confidentialité & Caméra</h1>
+    <p>Votre vie privée est importante pour nous sur CamConnect.</p>
+    <ul>
+        <li><strong>Flux Caméra :</strong> Vos flux vidéo et audio sont transmis en direct pair-à-pair (P2P) avec votre interlocuteur et ne sont ni enregistrés ni stockés sur nos serveurs.</li>
+        <li><strong>Données techniques :</strong> Seules les adresses IP et les motifs de signalement sont traités temporairement pour assurer la modération et la sécurité de la plateforme.</li>
+        <li><strong>Paiements :</strong> Les abonnements VIP sont gérés de manière sécurisée par Stripe. Aucune donnée bancaire n'est conservée par nos soins.</li>
+    </ul>
+    <p><a href="/" style="color: #3b82f6;">← Retour à l'accueil</a></p>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Conditions Générales d'Utilisation - CamConnect</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; }
+        h1 { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>Conditions Générales d'Utilisation (CGU)</h1>
+    <p>Bienvenue sur CamConnect. En utilisant notre service de chat vidéo, vous acceptez de respecter les règles de bonne conduite :</p>
+    <ul>
+        <li>Interdiction formelle de diffuser du contenu pornographique, violent ou illégal.</li>
+        <li>Interdiction du harcèlement, des insultes ou du spam.</li>
+        <li>Les utilisateurs de moins de 18 ans ne sont pas autorisés.</li>
+        <li>Tout non-respect entraînera un bannissement automatique ou manuel par les modérateurs.</li>
+    </ul>
+    <p><a href="/" style="color: #3b82f6;">← Retour à l'accueil</a></p>
+</body>
+</html>
