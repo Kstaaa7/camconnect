@@ -68,6 +68,34 @@ app.use(express.json());
 // Dossier public : tout est directement à la racine
 app.use(express.static(__dirname));
 
+// Route pour générer le sitemap XML dynamiquement
+app.get('/sitemap.xml', (req, res) => {
+    res.header('Content-Type', 'application/xml');
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>${baseUrl}/</loc>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+    </url>
+    <url>
+        <loc>${baseUrl}/cgu.html</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.3</priority>
+    </url>
+    <url>
+        <loc>${baseUrl}/privacy.html</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.3</priority>
+    </url>
+</urlset>`;
+    res.send(sitemap);
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
