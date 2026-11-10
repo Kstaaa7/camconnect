@@ -334,6 +334,17 @@ io.on('connection', (socket) => {
     if (socket.partnerId) io.to(socket.partnerId).emit('chat-message', msg);
   });
 
+  // Gestion des messages privés entre amis récents
+  socket.on('private-message', (data) => {
+    if (data && data.targetId && data.message) {
+      io.to(data.targetId).emit('private-message', {
+        senderId: socket.id,
+        senderName: socket.username,
+        message: data.message
+      });
+    }
+  });
+
   socket.on('typing', (isTyping) => {
     if (socket.partnerId) io.to(socket.partnerId).emit('typing', isTyping);
   });

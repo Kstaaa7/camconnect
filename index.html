@@ -146,7 +146,7 @@
                 </form>
             </div>
 
-            <!-- Amis Récents -->
+            <!-- Amis Récents (Cliquables pour messagerie privée) -->
             <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-[130px] shadow-lg overflow-hidden p-2.5 shrink-0">
                 <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-800 flex justify-between items-center">
                     <span>⭐ Amis Récents</span>
@@ -513,6 +513,7 @@
             alert(`✨ C'est un match amical ! ${name} a été ajouté à vos amis récents.`);
         });
 
+        // Rendre les amis cliquables pour envoyer un message privé
         function updateFriendsUI() {
             const container = document.getElementById('friendsList');
             document.getElementById('friendCount').innerText = recentFriends.length;
@@ -525,11 +526,41 @@
             container.innerHTML = '';
             recentFriends.forEach((friend) => {
                 const div = document.createElement('div');
-                div.className = "bg-slate-950/60 p-1.5 rounded-lg border border-slate-800 flex justify-between items-center text-[11px]";
-                div.innerHTML = `<span class="font-bold text-slate-200">${escapeHtml(friend.name)}</span><span class="text-emerald-400 text-[10px]">Ami</span>`;
+                div.className = "bg-slate-950/60 p-1.5 rounded-lg border border-slate-800 flex justify-between items-center text-[11px] cursor-pointer hover:bg-slate-800 transition";
+                div.innerHTML = `
+                    <span class="font-bold text-slate-200">⭐ ${escapeHtml(friend.name)}</span>
+                    <button class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-0.5 rounded text-[10px]">Message</button>
+                `;
+                div.addEventListener('click', () => {
+                    openPrivateChat(friend.id, friend.name);
+                });
                 container.appendChild(div);
             });
         }
+
+        function openPrivateChat(targetId, targetName) {
+            const msg = prompt(`Envoyer un message privé à ${targetName} :`);
+            if (msg && msg.trim() !== '') {
+                socket.emit('private-message', { targetId: targetId, message: msg });
+                
+                const chatMessages = document.getElementById('chatMessages');
+                const div = document.createElement('div');
+                div.className = "text-indigo-400 text-right text-xs my-1";
+                div.innerHTML = `<b>Moi (à ${escapeHtml(targetName)}) :</b> ${escapeHtml(msg)}`;
+                chatMessages.appendChild(div);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        socket.on('private-message', ({ senderId, senderName, message }) => {
+            const chatMessages = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = "text-rose-400 text-left text-xs my-1 bg-rose-950/30 p-2 rounded-lg border border-rose-900/50";
+            div.innerHTML = `<b>Privé de ${escapeHtml(senderName)} :</b> ${escapeHtml(message)}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            alert(`Nouveau message privé de ${senderName} !`);
+        });
 
         socket.on('waiting', () => {
             document.getElementById('status').innerText = "En attente d'un autre utilisateur...";
@@ -559,15 +590,35 @@
             if (initiate) {
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
-                socket.emit('signal', { targetId: partnerId, signal: { type: 'offer', sdp: offer } });
+                socket.emit('signal', { targetId: partnerId, signal: peerConnection.localDescription });
+            }
+        });
+
+        socket.on('signal', async ({ senderId, signal }) => {
+            if (!peerConnection) createPeerConnection(senderId);
+
+            if (signal.type === 'offer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('signal', { targetId: senderId, signal: peerConnection.localDescription });
+            } else if (signal.type === 'answer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+            } else if (signal.candidate) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCSessionCandidate(signal));
+                } catch (e) {
+                    console.error('Erreur ajout ICE candidate', e);
+                }
             }
         });
 
         function createPeerConnection(partnerId) {
             peerConnection = new RTCPeerConnection(rtcConfig);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-            startNetworkQualityMonitor(peerConnection);
+            if (localStream) {
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            }
 
             peerConnection.ontrack = (event) => {
                 document.getElementById('remoteVideo').srcObject = event.streams[0];
@@ -575,130 +626,63 @@
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    socket.emit('signal', { targetId: partnerId, signal: { type: 'candidate', candidate: event.candidate } });
+                    socket.emit('signal', { targetId: partnerId, signal: event.candidate });
                 }
             };
         }
 
-        function startNetworkQualityMonitor(pc) {
-            if (statsInterval) clearInterval(statsInterval);
-
-            statsInterval = setInterval(async () => {
-                if (!pc || pc.connectionState !== 'connected') {
-                    updateNetworkUI('disconnected');
-                    return;
-                }
-
-                try {
-                    const stats = await pc.getStats();
-                    let packetsLost = 0;
-                    let packetsReceived = 0;
-                    let currentRoundTripTime = 0;
-
-                    stats.forEach(report => {
-                        if (report.type === 'inbound-rtp' && report.kind === 'video') {
-                            packetsLost = report.packetsLost || 0;
-                            packetsReceived = report.packetsReceived || 0;
-                        }
-                        if (report.type === 'remote-candidate' || report.type === 'candidate-pair') {
-                            if (report.currentRoundTripTime) {
-                                currentRoundTripTime = report.currentRoundTripTime;
-                            }
-                        }
-                    });
-
-                    const totalPackets = packetsLost + packetsReceived;
-                    const lossRate = totalPackets > 0 ? (packetsLost / totalPackets) : 0;
-
-                    if (lossRate > 0.10 || currentRoundTripTime > 0.6) {
-                        updateNetworkUI('poor');
-                    } else if (lossRate > 0.02 || currentRoundTripTime > 0.25) {
-                        updateNetworkUI('fair');
-                    } else {
-                        updateNetworkUI('good');
-                    }
-                } catch (err) {
-                    console.error("Erreur stats WebRTC:", err);
-                }
-            }, 2000);
-        }
-
-        function updateNetworkUI(status) {
-            const indicator = document.getElementById('networkIndicator');
-            const text = document.getElementById('networkText');
-            if (!indicator || !text) return;
-
-            if (status === 'good') {
-                indicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 transition-colors duration-500 shadow-lg shadow-emerald-500/50";
-                text.innerText = "Réseau : Excellent";
-            } else if (status === 'fair') {
-                indicator.className = "w-2.5 h-2.5 rounded-full bg-amber-500 transition-colors duration-500 shadow-lg shadow-amber-500/50";
-                text.innerText = "Réseau : Moyen";
-            } else {
-                indicator.className = "w-2.5 h-2.5 rounded-full bg-rose-500 transition-colors duration-500 animate-ping";
-                text.innerText = "Réseau : Instable";
-            }
-        }
-
-        function stopNetworkQualityMonitor() {
-            if (statsInterval) {
-                clearInterval(statsInterval);
-                statsInterval = null;
-            }
-            updateNetworkUI('good');
-        }
-
-        socket.on('signal', async ({ senderId, signal }) => {
-            if (!peerConnection) createPeerConnection(senderId);
-            try {
-                if (signal.type === 'offer') {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    socket.emit('signal', { targetId: senderId, signal: { type: 'answer', sdp: answer } });
-                } else if (signal.type === 'answer') {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                } else if (signal.type === 'candidate') {
-                    if (signal.candidate) {
-                        await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
-                    }
-                }
-            } catch (err) {
-                console.error("Erreur signaling WebRTC:", err);
-            }
-        });
-
-        socket.on('partner-disconnected', () => {
-            alert("Votre partenaire s'est déconnecté.");
-            closePeerConnection();
-            startSearch();
-        });
-
         function closePeerConnection() {
-            stopNetworkQualityMonitor();
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
             }
-            currentPartnerId = null;
             document.getElementById('remoteVideo').srcObject = null;
             document.getElementById('remotePlaceholder').style.display = 'flex';
             document.getElementById('remoteNameLabel').innerText = 'Inconnu';
+            currentPartnerId = null;
             document.getElementById('chatInput').disabled = true;
             document.getElementById('sendBtn').disabled = true;
             document.getElementById('addFriendBtn').classList.add('hidden');
-            document.getElementById('status').innerText = "Prêt à démarrer";
-            document.getElementById('status').className = "text-xs text-amber-400 font-medium";
         }
 
+        socket.on('partner-disconnected', () => {
+            alert("Votre partenaire s'est déconnecté.");
+            closePeerConnection();
+            document.getElementById('status').innerText = "Partenaire déconnecté. Cliquez sur Suivant.";
+            document.getElementById('status').className = "text-xs text-amber-400 font-medium";
+        });
+
         function stopChat() {
-            if (peerConnection) {
-                socket.emit('next-partner');
-                closePeerConnection();
-            }
+            closePeerConnection();
+            socket.emit('next-partner');
             document.getElementById('status').innerText = "Chat arrêté.";
             document.getElementById('status').className = "text-xs text-slate-400 font-medium";
         }
+
+        function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (msg && currentPartnerId) {
+                socket.emit('chat-message', msg);
+                const chatMessages = document.getElementById('chatMessages');
+                const div = document.createElement('div');
+                div.className = "text-indigo-400 text-right";
+                div.innerHTML = `<b>Moi :</b> ${escapeHtml(msg)}`;
+                chatMessages.appendChild(div);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                input.value = '';
+            }
+        }
+
+        socket.on('chat-message', (msg) => {
+            const chatMessages = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = "text-rose-400 text-left";
+            div.innerHTML = `<b>Partenaire :</b> ${escapeHtml(msg)}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
 
         function handleTypingInput() {
             socket.emit('typing', true);
@@ -710,94 +694,46 @@
 
         socket.on('typing', (isTyping) => {
             const indicator = document.getElementById('typingIndicator');
-            if (isTyping) {
-                indicator.classList.remove('opacity-0');
-            } else {
-                indicator.classList.add('opacity-0');
-            }
+            indicator.style.opacity = isTyping ? '1' : '0';
         });
-
-        function sendChatMessage(event) {
-            event.preventDefault();
-            const input = document.getElementById('chatInput');
-            const msg = input.value.trim();
-            if (!msg || !currentPartnerId) return;
-
-            appendChatMessage('Vous', msg, true);
-            socket.emit('chat-message', msg);
-            input.value = '';
-            socket.emit('typing', false);
-        }
-
-        socket.on('chat-message', (msg) => {
-            appendChatMessage('Partenaire', msg, false);
-        });
-
-        function appendChatMessage(sender, msg, isMe) {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1`;
-            div.innerHTML = `
-                <span class="text-[10px] text-slate-400 mb-0.5">${escapeHtml(sender)}</span>
-                <div class="px-3 py-1.5 rounded-xl text-xs max-w-[85%] break-words ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none'}">${escapeHtml(msg)}</div>
-            `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function escapeHtml(text) {
-            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-        }
 
         function toggleVideoFilter() {
             currentFilterIndex = (currentFilterIndex + 1) % videoFilters.length;
             const filter = videoFilters[currentFilterIndex];
             const localVid = document.getElementById('localVideo');
-            
-            videoFilters.forEach(f => {
-                if (f.class) {
-                    f.class.split(' ').forEach(cls => localVid.classList.remove(cls));
-                }
-            });
-
-            if (filter.class) {
-                filter.class.split(' ').forEach(cls => localVid.classList.add(cls));
-            }
-
+            localVid.className = `w-full h-full object-cover -scale-x-100 transition-all duration-300 ${filter.class}`;
             document.getElementById('filterBtn').innerText = `🎨 Filtre : ${filter.name}`;
         }
 
         async function toggleScreenShare() {
             try {
-                if (!navigator.mediaDevices.getDisplayMedia) {
-                    alert("Le partage d'écran n'est pas supporté par votre navigateur.");
-                    return;
-                }
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 const screenTrack = screenStream.getVideoTracks()[0];
-
+                
                 if (peerConnection) {
-                    const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                    if (sender) {
-                        sender.replaceTrack(screenTrack);
-                    }
+                    const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(screenTrack);
                 }
+                
                 document.getElementById('localVideo').srcObject = screenStream;
 
                 screenTrack.onended = () => {
                     if (localStream) {
-                        const videoTrack = localStream.getVideoTracks()[0];
+                        const camTrack = localStream.getVideoTracks()[0];
                         if (peerConnection) {
-                            const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                            if (sender) sender.replaceTrack(videoTrack);
+                            const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+                            if (sender) sender.replaceTrack(camTrack);
                         }
                         document.getElementById('localVideo').srcObject = localStream;
                     }
                 };
             } catch (err) {
-                console.error("Erreur partage d'écran:", err);
+                console.log("Partage d'écran annulé ou non supporté.");
             }
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
     </script>
 </body>
