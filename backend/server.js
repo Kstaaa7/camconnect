@@ -16,7 +16,6 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Route pour accéder au Dashboard Admin sécurisé (/admin.html)
-// admin.html étant dans le dossier backend/, on pointe directement dessus :
 app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
@@ -136,7 +135,7 @@ io.on('connection', (socket) => {
     const targetSocket = io.sockets.sockets.get(targetSocketId);
     if (targetSocket) {
       const targetIp = getClientIp(targetSocket);
-      userReports.set(targetIp, { count: BAN_THRESHOLD, bannedUntil: Date.now() + BAN_DURATION_MS });
+      userReports.set(targetIp, { count: BAN_THRESHOLD, bannedUntil: Date.now() + BAN_DURATION_MS, lastReason: "Banni directement par l'admin" });
       targetSocket.emit('banned', { reason: "Banni par l'administrateur." });
       targetSocket.disconnect(true);
       broadcastAdminStats();
@@ -233,18 +232,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('report-partner', () => {
+  // CORRECTION : Prise en compte du motif de signalement envoyé par le client
+  socket.on('report-partner', (data) => {
+    const reportReason = data && data.reason ? data.reason : "Non spécifié";
+
     if (socket.partnerId) {
       const partnerSocket = io.sockets.sockets.get(socket.partnerId);
       socket.blockedIds.add(socket.partnerId);
       if (partnerSocket) {
         partnerSocket.blockedIds.add(socket.id);
         const targetIp = getClientIp(partnerSocket);
-        let targetData = userReports.get(targetIp) || { count: 0, bannedUntil: null };
+        
+        let targetData = userReports.get(targetIp) || { count: 0, bannedUntil: null, lastReason: '' };
         targetData.count += 1;
+        targetData.lastReason = reportReason; // Sauvegarde de la raison exacte
+
         if (targetData.count >= BAN_THRESHOLD) {
           targetData.bannedUntil = Date.now() + BAN_DURATION_MS;
-          partnerSocket.emit('banned', { reason: "Banni pour comportement inapproprié." });
+          partnerSocket.emit('banned', { reason: `Banni pour : ${reportReason}` });
           partnerSocket.disconnect(true);
         }
         userReports.set(targetIp, targetData);

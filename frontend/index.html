@@ -101,7 +101,7 @@
 
             <!-- Votre Vidéo -->
             <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg h-full">
-                <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover -scale-x-100"></video>
+                <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover -scale-x-100 transition-all duration-300"></video>
                 <span id="localNameLabel" class="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded-md text-[11px] backdrop-blur font-semibold text-indigo-400">Vous</span>
             </div>
         </div>
@@ -138,33 +138,43 @@
         </div>
     </main>
 
-    <!-- Barre de Contrôle -->
-    <footer class="px-4 py-2.5 bg-slate-900/90 border-t border-slate-800 flex justify-center gap-2.5 flex-wrap items-center shrink-0">
-        <button onclick="startSearch()" id="searchBtn" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-xl font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 text-xs">
-            <span>Démarrer / Suivant</span>
-            <kbd class="bg-indigo-700/60 px-1.5 py-0.5 rounded text-[10px] text-indigo-200 border border-indigo-500/30">Espace</kbd>
-        </button>
-        
-        <button onclick="addCurrentFriend()" id="addFriendBtn" disabled class="hidden bg-rose-600/80 hover:bg-rose-500 px-4 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 flex items-center gap-1.5 text-xs disabled:opacity-50">
-            ❤️ Ajouter en ami
-        </button>
+    <!-- Barre de Contrôle & Liens légaux -->
+    <footer class="px-4 py-2 bg-slate-900/90 border-t border-slate-800 flex flex-col gap-1.5 shrink-0">
+        <div class="flex justify-center gap-2.5 flex-wrap items-center">
+            <button onclick="startSearch()" id="searchBtn" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-xl font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 text-xs">
+                <span>Démarrer / Suivant</span>
+                <kbd class="bg-indigo-700/60 px-1.5 py-0.5 rounded text-[10px] text-indigo-200 border border-indigo-500/30">Espace</kbd>
+            </button>
+            
+            <button onclick="addCurrentFriend()" id="addFriendBtn" disabled class="hidden bg-rose-600/80 hover:bg-rose-500 px-4 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 flex items-center gap-1.5 text-xs disabled:opacity-50">
+                ❤️ Ajouter en ami
+            </button>
 
-        <!-- Bouton Filtres Vidéo -->
-        <button onclick="toggleVideoFilter()" id="filterBtn" class="bg-purple-600 hover:bg-purple-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-purple-600/30 flex items-center gap-1 text-xs">
-            🎨 Filtre : Normal
-        </button>
+            <!-- Bouton Filtres Vidéo -->
+            <button onclick="toggleVideoFilter()" id="filterBtn" class="bg-purple-600 hover:bg-purple-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-purple-600/30 flex items-center gap-1 text-xs">
+                🎨 Filtre : Normal
+            </button>
 
-        <!-- Bouton Partage d'écran -->
-        <button onclick="toggleScreenShare()" id="screenShareBtn" class="bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-sky-600/30 flex items-center gap-1 text-xs">
-            💻 Partager l'écran
-        </button>
+            <!-- Bouton Partage d'écran -->
+            <button onclick="toggleScreenShare()" id="screenShareBtn" class="bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-sky-600/30 flex items-center gap-1 text-xs">
+                💻 Partager l'écran
+            </button>
 
-        <button onclick="reportPartner()" class="bg-amber-600 hover:bg-amber-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-amber-600/30 flex items-center gap-1 text-xs">
-            Signaler
-        </button>
-        <button onclick="stopChat()" class="bg-rose-600 hover:bg-rose-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 text-xs">
-            Arrêter
-        </button>
+            <button onclick="reportPartner()" class="bg-amber-600 hover:bg-amber-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-amber-600/30 flex items-center gap-1 text-xs">
+                Signaler
+            </button>
+            <button onclick="stopChat()" class="bg-rose-600 hover:bg-rose-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 text-xs">
+                Arrêter
+            </button>
+        </div>
+        <!-- Pied de page légal -->
+        <div class="text-center text-[11px] text-slate-500 flex justify-center gap-3 pt-1 border-t border-slate-800/60">
+            <a href="/cgu.html" target="_blank" class="hover:text-slate-300 transition">Conditions Générales d'Utilisation (CGU)</a>
+            <span>•</span>
+            <a href="/privacy.html" target="_blank" class="hover:text-slate-300 transition">Politique de Confidentialité</a>
+            <span>•</span>
+            <span>© 2026 CamConnect</span>
+        </div>
     </footer>
 
     <!-- Modale Profil -->
@@ -216,6 +226,14 @@
         let isVip = false;
         let recentFriends = [];
         let statsInterval = null;
+        let currentFilterIndex = 0;
+        const videoFilters = [
+            { name: 'Normal', class: '' },
+            { name: 'Sépia', class: 'sepia' },
+            { name: 'Noir & Blanc', class: 'grayscale' },
+            { name: 'Contraste', class: 'contrast-125' },
+            { name: 'Flou artistique', class: 'blur-[1px]' }
+        ];
 
         // Gestion de la modale de consentement
         function acceptConsent() {
@@ -360,13 +378,23 @@
             setTimeout(() => { copyText.innerText = "Partager"; }, 2000);
         }
 
+        // Fonction de signalement interactive avec motifs
         function reportPartner() {
             if (!currentPartnerId) {
                 alert("Aucun partenaire à signaler pour le moment.");
                 return;
             }
-            if (confirm("Signaler et bloquer cet utilisateur ? Au bout de 3 signalements, il sera banni automatiquement.")) {
-                socket.emit('report-partner');
+            const reason = prompt(
+                "Choisissez un motif de signalement :\n\n" +
+                "1. Nudité / Contenu sexuel\n" +
+                "2. Harcèlement / Insultes\n" +
+                "3. Spam / Publicité\n\n" +
+                "Entrez votre motif :", 
+                "Nudité / Contenu sexuel"
+            );
+
+            if (reason) {
+                socket.emit('report-partner', { reason: reason });
                 closePeerConnection();
                 document.getElementById('status').innerText = "Utilisateur signalé et bloqué.";
                 document.getElementById('status').className = "text-xs text-rose-400 font-medium";
@@ -466,7 +494,6 @@
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-            // Active le suivi de la qualité de connexion WebRTC
             startNetworkQualityMonitor(peerConnection);
 
             peerConnection.ontrack = (event) => {
@@ -480,7 +507,6 @@
             };
         }
 
-        // --- Surveillance de la qualité réseau WebRTC ---
         function startNetworkQualityMonitor(pc) {
             if (statsInterval) clearInterval(statsInterval);
 
@@ -512,11 +538,11 @@
                     const lossRate = totalPackets > 0 ? (packetsLost / totalPackets) : 0;
 
                     if (lossRate > 0.10 || currentRoundTripTime > 0.6) {
-                        updateNetworkUI('poor'); // Rouge
+                        updateNetworkUI('poor');
                     } else if (lossRate > 0.02 || currentRoundTripTime > 0.25) {
-                        updateNetworkUI('fair'); // Orange
+                        updateNetworkUI('fair');
                     } else {
-                        updateNetworkUI('good'); // Vert
+                        updateNetworkUI('good');
                     }
                 } catch (err) {
                     console.error("Erreur stats WebRTC:", err);
@@ -579,129 +605,104 @@
         function sendChatMessage(e) {
             e.preventDefault();
             const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            socket.emit('typing', false);
-            appendMessage(myUsername, message, 'text-indigo-400');
-            socket.emit('chat-message', message);
-            input.value = '';
+            const msg = input.value.trim();
+            if (msg && currentPartnerId) {
+                socket.emit('chat-message', msg);
+                appendMessage('Moi', msg, 'text-indigo-400');
+                input.value = '';
+            }
         }
 
-        socket.on('chat-message', (message) => {
-            const partnerLabel = document.getElementById('remoteNameLabel').innerText || 'Inconnu';
-            appendMessage(partnerLabel, message, 'text-rose-400');
+        socket.on('chat-message', (msg) => {
+            appendMessage('Inconnu', msg, 'text-rose-400');
         });
 
-        function appendMessage(sender, message, colorClass) {
+        function appendMessage(sender, msg, colorClass) {
             const chatMessages = document.getElementById('chatMessages');
-            if (chatMessages.querySelector('.italic')) {
-                chatMessages.innerHTML = '';
-            }
             const div = document.createElement('div');
-            div.innerHTML = `<span class="font-bold ${colorClass}">${sender}:</span> ${escapeHtml(message)}`;
+            div.className = "leading-tight break-words";
+            div.innerHTML = `<span class="font-bold ${colorClass}">${escapeHtml(sender)}:</span> ${escapeHtml(msg)}`;
             chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
         function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
         }
 
-        socket.on('partner-disconnected', () => {
-            appendMessage('Système', 'Votre partenaire s\'est déconnecté.', 'text-slate-500 italic');
+        function stopChat() {
             closePeerConnection();
-        });
+            document.getElementById('status').innerText = "Chat arrêté.";
+            document.getElementById('status').className = "text-xs text-slate-400 font-medium";
+            document.getElementById('remotePlaceholder').style.display = 'flex';
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('remoteNameLabel').innerText = "Inconnu";
+            document.getElementById('chatInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('addFriendBtn').classList.add('hidden');
+            document.getElementById('chatMessages').innerHTML = '<div class="text-slate-500 text-center italic my-auto">Chat arrêté. Appuyez sur Démarrer.</div>';
+        }
 
         function closePeerConnection() {
-            stopNetworkQualityMonitor();
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
             }
             currentPartnerId = null;
-            document.getElementById('remoteVideo').srcObject = null;
-            document.getElementById('remotePlaceholder').style.display = 'flex';
-            document.getElementById('remoteNameLabel').innerText = 'Inconnu';
-            document.getElementById('chatInput').disabled = true;
-            document.getElementById('sendBtn').disabled = true;
-            document.getElementById('addFriendBtn').classList.add('hidden');
-            document.getElementById('typingIndicator').classList.add('opacity-0');
+            stopNetworkQualityMonitor();
         }
 
-        function stopChat() {
-            socket.emit('next-partner');
-            closePeerConnection();
-            document.getElementById('status').innerText = "Chat arrêté";
-            document.getElementById('status').className = "text-xs text-slate-400 font-medium";
-        }
-
-        // --- FILTRES VISUELS (Effets vidéo) ---
-        let currentFilterIndex = 0;
-        const videoFilters = [
-            { name: "Normal", class: "" },
-            { name: "Cyberpunk", class: "contrast-150 saturate-200 hue-rotate-15" },
-            { name: "Noir & Blanc", class: "grayscale" },
-            { name: "Sépia vintage", class: "sepia" },
-            { name: "Néon mystique", class: "invert hue-rotate-90" }
-        ];
+        socket.on('partner-disconnected', () => {
+            alert("Votre partenaire s'est déconnecté.");
+            stopChat();
+        });
 
         function toggleVideoFilter() {
             currentFilterIndex = (currentFilterIndex + 1) % videoFilters.length;
-            const selectedFilter = videoFilters[currentFilterIndex];
-            const localVid = document.getElementById('localVideo');
+            const filter = videoFilters[currentFilterIndex];
+            const localVideo = document.getElementById('localVideo');
             
+            // Retire tous les filtres précédents
             videoFilters.forEach(f => {
                 if (f.class) {
-                    f.class.split(' ').forEach(c => localVid.classList.remove(c));
+                    f.class.split(' ').forEach(cls => localVideo.classList.remove(cls));
                 }
             });
-
-            if (selectedFilter.class) {
-                selectedFilter.class.split(' ').forEach(c => localVid.classList.add(c));
+            
+            // Applique le nouveau filtre
+            if (filter.class) {
+                filter.class.split(' ').forEach(cls => localVideo.classList.add(cls));
             }
-
-            document.getElementById('filterBtn').innerText = `🎨 Filtre : ${selectedFilter.name}`;
+            
+            document.getElementById('filterBtn').innerText = `🎨 Filtre : ${filter.name}`;
         }
-
-        // --- PARTAGE D'ÉCRAN ---
-        let isSharingScreen = false;
-        let screenStream = null;
 
         async function toggleScreenShare() {
             try {
-                if (!isSharingScreen) {
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                    const screenTrack = screenStream.getVideoTracks()[0];
-                    
-                    if (peerConnection) {
-                        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                        if (sender) {
-                            sender.replaceTrack(screenTrack);
-                        }
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenTrack = screenStream.getVideoTracks()[0];
+                
+                if (peerConnection) {
+                    const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(screenTrack);
                     }
-
-                    document.getElementById('localVideo').srcObject = screenStream;
-                    document.getElementById('screenShareBtn').innerText = "💻 Arrêter le partage";
-                    document.getElementById('screenShareBtn').className = "bg-rose-600 hover:bg-rose-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-rose-600/30 flex items-center gap-1 text-xs";
-                    isSharingScreen = true;
-
-                    screenTrack.onended = () => {
-                        stopScreenShare();
-                    };
-                } else {
-                    stopScreenShare();
                 }
+                
+                document.getElementById('localVideo').srcObject = screenStream;
+                document.getElementById('screenShareBtn').innerText = "🖥️ Arrêter le partage";
+                document.getElementById('screenShareBtn').onclick = stopScreenShare;
+
+                screenTrack.onended = () => {
+                    stopScreenShare();
+                };
             } catch (err) {
-                console.error("Erreur lors du partage d'écran :", err);
+                console.error("Partage d'écran annulé ou refusé", err);
             }
         }
 
-        function stopScreenShare() {
-            if (screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
-            }
-
+        async function stopScreenShare() {
             if (localStream && peerConnection) {
                 const videoTrack = localStream.getVideoTracks()[0];
                 const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
@@ -710,10 +711,9 @@
                 }
                 document.getElementById('localVideo').srcObject = localStream;
             }
-
-            document.getElementById('screenShareBtn').innerText = "💻 Partager l'écran";
-            document.getElementById('screenShareBtn').className = "bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-xl font-bold transition shadow-md shadow-sky-600/30 flex items-center gap-1 text-xs";
-            isSharingScreen = false;
+            const btn = document.getElementById('screenShareBtn');
+            btn.innerText = "💻 Partager l'écran";
+            btn.onclick = toggleScreenShare;
         }
     </script>
 </body>
