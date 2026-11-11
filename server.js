@@ -345,6 +345,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  // MODÉRATION AUTOMATIQUE (Bannissement si contenu explicite détecté)
+  socket.on('auto-nsfw-detected', () => {
+    const targetIp = getClientIp(socket);
+    userReports.set(targetIp, { 
+      count: BAN_THRESHOLD, 
+      bannedUntil: Date.now() + (24 * 60 * 60 * 1000), // Banni 24h
+      lastReason: "Détection automatique de contenu explicite" 
+    });
+    socket.emit('banned', { reason: "Banni automatiquement par la modération IA (contenu non autorisé)." });
+    socket.disconnect(true);
+    broadcastAdminStats();
+  });
+
   socket.on('typing', (isTyping) => {
     if (socket.partnerId) io.to(socket.partnerId).emit('typing', isTyping);
   });
