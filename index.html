@@ -559,7 +559,6 @@
             div.innerHTML = `<b>Privé de ${escapeHtml(senderName)} :</b> ${escapeHtml(message)}`;
             chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
-            alert(`Nouveau message privé de ${senderName} !`);
         });
 
         socket.on('waiting', () => {
@@ -606,7 +605,7 @@
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
             } else if (signal.candidate) {
                 try {
-                    await peerConnection.addIceCandidate(new RTCSessionCandidate(signal));
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(signal));
                 } catch (e) {
                     console.error('Erreur ajout ICE candidate', e);
                 }
@@ -621,7 +620,15 @@
             }
 
             peerConnection.ontrack = (event) => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
+                const remoteVideo = document.getElementById('remoteVideo');
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                } else {
+                    const inboundStream = new MediaStream();
+                    inboundStream.addTrack(event.track);
+                    remoteVideo.srcObject = inboundStream;
+                }
+                remoteVideo.play().catch(e => console.log("Erreur lecture auto video:", e));
             };
 
             peerConnection.onicecandidate = (event) => {
