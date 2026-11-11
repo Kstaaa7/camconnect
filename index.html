@@ -104,13 +104,13 @@
         </div>
     </header>
 
-    <!-- Zone principale -->
-    <main class="flex-1 p-3 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-3 items-center overflow-hidden">
+    <!-- Zone principale responsive PC & Mobile -->
+    <main class="flex-1 p-2 md:p-3 max-w-7xl mx-auto w-full flex flex-col lg:grid lg:grid-cols-3 gap-2 md:gap-3 overflow-y-auto lg:overflow-hidden">
         
         <!-- Colonne des flux vidéos -->
-        <div class="lg:col-span-2 grid grid-rows-2 gap-3 h-full max-h-[calc(100vh-140px)]">
+        <div class="lg:col-span-2 flex flex-col sm:flex-row lg:flex-col gap-2 md:gap-3 h-[45vh] lg:h-full lg:max-h-[calc(100vh-140px)] shrink-0">
             <!-- Vidéo Partenaire -->
-            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg h-full">
+            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg flex-1 min-h-[160px]">
                 <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover transition-all duration-300"></video>
                 
                 <div id="remotePlaceholder" class="absolute text-slate-500 flex flex-col items-center text-xs">
@@ -121,20 +121,20 @@
             </div>
 
             <!-- Votre Vidéo -->
-            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg h-full">
+            <div class="relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center shadow-lg flex-1 min-h-[160px]">
                 <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover -scale-x-100 transition-all duration-300"></video>
                 <span id="localNameLabel" class="absolute bottom-2 left-2 bg-black/60 px-2 py-0.5 rounded-md text-[11px] backdrop-blur font-semibold text-indigo-400">Vous</span>
             </div>
         </div>
 
-        <!-- Colonne de droite : Chat et Amis -->
-        <div class="flex flex-col gap-3 h-full max-h-[calc(100vh-140px)]">
-            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col flex-1 shadow-lg overflow-hidden min-h-[180px]">
+        <!-- Colonne de droite : Chat et Amis (S'empile proprement sur mobile) -->
+        <div class="flex flex-col gap-2 md:gap-3 flex-1 lg:h-full lg:max-h-[calc(100vh-140px)] min-h-[250px]">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col flex-1 shadow-lg overflow-hidden min-h-[160px]">
                 <div class="px-3 py-2 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-900/80 flex justify-between items-center">
                     <span>Discussion</span>
                     <span id="typingIndicator" class="text-indigo-400 text-[10px] italic opacity-0 transition-opacity">Écrit...</span>
                 </div>
-                <div id="chatMessages" class="flex-1 p-2.5 overflow-y-auto flex flex-col gap-1.5 text-xs">
+                <div id="chatMessages" class="flex-1 p-2.5 overflow-y-auto flex flex-col gap-1.5 text-xs max-h-[150px] lg:max-h-none">
                     <div class="text-slate-500 text-center italic my-auto">Connectez-vous pour chatter.</div>
                 </div>
                 <form id="chatForm" onsubmit="sendChatMessage(event)" class="p-2 border-t border-slate-800 flex gap-1.5 bg-slate-900/50">
@@ -146,13 +146,13 @@
                 </form>
             </div>
 
-            <!-- Amis Récents (Cliquables pour messagerie privée) -->
-            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-[130px] shadow-lg overflow-hidden p-2.5 shrink-0">
+            <!-- Amis Récents -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-[110px] shadow-lg overflow-hidden p-2 shrink-0">
                 <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-800 flex justify-between items-center">
                     <span>⭐ Amis Récents</span>
                     <span id="friendCount" class="bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full text-[9px]">0</span>
                 </div>
-                <div id="friendsList" class="flex-1 overflow-y-auto py-1.5 flex flex-col gap-1 text-xs">
+                <div id="friendsList" class="flex-1 overflow-y-auto py-1 flex flex-col gap-1 text-xs">
                     <div class="text-slate-500 text-center italic my-auto text-[10px]">Aucun ami récent.</div>
                 </div>
             </div>
